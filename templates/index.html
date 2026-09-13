@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Kinoabend — вечер кино</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="{{ url_for('stage', stage=1, date=evening_date) }}"><span class="brand-mark">K</span><span>Kinoabend</span></a>
+        <div class="sidebar-block">
+          <p class="sidebar-label">Этапы вечера</p>
+          <nav class="steps">
+            <a class="step {% if stage == 1 %}active{% endif %}" href="{{ url_for('stage', stage=1, date=evening_date) }}"><span>01</span><b>Предложения</b><small>собрать фильмы</small></a>
+            <a class="step {% if stage == 2 %}active{% endif %}" href="{{ url_for('stage', stage=2, date=evening_date) }}"><span>02</span><b>Розыгрыш</b><small>выбрать случайно</small></a>
+            <a class="step {% if stage == 3 %}active{% endif %}" href="{{ url_for('stage', stage=3, date=evening_date) }}"><span>03</span><b>Подтверждение</b><small>зафиксировать вечер</small></a>
+          </nav>
+        </div>
+        <div class="sidebar-block users-block">
+          <div class="sidebar-title"><p class="sidebar-label">Пользователи</p><span>{{ users|length }}</span></div>
+          {% if users %}
+            <div class="user-list">
+              {% for user in users %}
+                <div class="user-row"><span class="user-dot"></span><b>{{ user["name"] }}</b><span class="user-weight" title="Текущий вес для розыгрыша">вес {{ user["weight"] }}</span><form action="{{ url_for('delete_user', user_id=user['id']) }}" method="post" onsubmit="return confirm('Удалить этого пользователя?');"><button class="delete-button" type="submit" aria-label="Удалить пользователя">×</button></form></div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="sidebar-empty">Добавь первого участника.</p>
+          {% endif %}
+          <form class="user-form" action="{{ url_for('add_user') }}" method="post">
+            <input name="name" type="text" maxlength="60" placeholder="Имя нового участника" required>
+            <button class="icon-button" type="submit" aria-label="Добавить пользователя">+</button>
+          </form>
+          <p class="weight-note">Вес = 1 + участие + до 4 за давность</p>
+        </div>
+        {% if history %}
+          <div class="sidebar-block history-block">
+            <p class="sidebar-label">Последние вечера</p>
+            {% for night in history %}<div class="history-row"><b>{{ night["film_title"] }}</b><small>{{ night["attendees"] }} участн. · {{ night["owner_name"] }}</small></div>{% endfor %}
+          </div>
+        {% endif %}
+        <footer>данные живут локально</footer>
+      </aside>
+
+      <main class="main-content" data-confirmed="{{ 'true' if confirmed_night else 'false' }}">
+        {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="messages" aria-live="polite">{% for category, message in messages %}<p class="message message-{{ category }}">{{ message }}</p>{% endfor %}</div>{% endif %}{% endwith %}
+
+        {% if stage == 1 %}
+          <section class="page-intro"><p class="eyebrow">Этап 01 · shortlist</p><h1>Сначала соберём<br><em>идеи.</em></h1><p class="intro">Каждый участник добавляет фильм от своего имени. Добавь себя в список слева, если тебя ещё там нет.</p><form class="date-switcher" method="get" action="{{ url_for('stage', stage=1) }}"><label for="evening_date">Вечер</label><input id="evening_date" name="date" type="date" value="{{ evening_date }}" onchange="this.form.submit()"></form></section>
+          <section class="list-section"><div class="list-heading"><div><p class="eyebrow">The shortlist</p><h2>Предложения <span>{{ suggestions|length }}</span></h2></div><p class="saved-note">Сохраняются<br>в SQLite</p></div>{% if suggestions %}<div class="suggestions-list">{% for suggestion in suggestions %}<article class="suggestion-ticket"><div class="ticket-stub"><span>{{ "%02d"|format(loop.index) }}</span><small>KINOABEND</small></div><div class="ticket-main"><span class="ticket-kicker">ВЕЧЕРНИЙ СЕАНС · {{ suggestion["owner_name"] }}</span><h3>{{ suggestion["film_title"] }}</h3><p>{{ suggestion["slogan"] or "Фильм, который стоит посмотреть вместе" }}</p></div><form class="ticket-delete" action="{{ url_for('delete_suggestion', suggestion_id=suggestion['id']) }}" method="post" onsubmit="return confirm('Удалить фильм из списка?');"><button class="delete-button" type="submit" aria-label="Удалить фильм">×</button></form><span class="ticket-star">✦</span></article>{% endfor %}</div>{% else %}<div class="empty-list">Список пока пуст. Добавь первый фильм ниже.</div>{% endif %}</section>
+          <section class="work-grid suggestion-form-section">
+            <div class="panel form-panel"><div class="panel-heading"><span class="section-number">01</span><div><h2>Новая идея</h2><p>Что хочется посмотреть?</p></div></div>
+              <form action="{{ url_for('add_suggestion') }}" method="post"><input type="hidden" name="evening_date" value="{{ evening_date }}">
+                <label for="film_title">Название фильма</label><input id="film_title" name="film_title" type="text" placeholder="Утомлённые солнцем 2" maxlength="120" required>
+                <label for="slogan">Слоган</label><input id="slogan" name="slogan" type="text" placeholder="В масть ли тебе эти котлы?" maxlength="160">
+                <label for="user_id">Кто предлагает?</label><select id="user_id" name="user_id" required><option value="" selected disabled>Выбери себя</option>{% for user in users %}<option value="{{ user["id"] }}">{{ user["name"] }}</option>{% endfor %}</select>
+                <button class="button button-dark" type="submit" {% if not users %}disabled{% endif %}>Добавить фильм <span>↗</span></button>
+              </form>
+            </div>
+            <div class="panel info-panel"><p class="eyebrow">Как это работает</p><h2>Список без<br>лишних правил.</h2><p>Добавь фильм, придумай ему слоган и передай билет в общую кассу.</p></div>
+          </section>
+
+        {% elif stage == 2 %}
+          <section class="page-intro"><p class="eyebrow">Этап 02 · three rolls</p><h1>Пусть решит<br><em>колесо.</em></h1><p class="intro">Три ролла, три шанса. Очки копятся у владельцев выпавших билетиков, а победитель выбирается в финале.</p></section>
+          {% if roll_results %}<section class="roll-history"><div class="list-heading"><div><p class="eyebrow">Roll history</p><h2>Три билетика <span>{{ roll_results|length }}/3</span></h2></div><p class="saved-note">Результаты<br>этого вечера</p></div><div class="roll-ticket-list">{% for result in roll_results|sort(attribute='roll_number') %}<article class="roll-history-ticket roll-color-{{ result["roll_number"] }}{% if current_draw and result["suggestion_id"] == current_draw["suggestion_id"] %} winning-ticket{% endif %}"><span class="history-roll-number">0{{ result["roll_number"] }}</span><div><span class="ticket-kicker">РОЛЛ {{ result["roll_number"] }} · {{ result["user_name"] }}</span><h3>{{ result["film_title"] }}</h3>{% if current_draw and result["suggestion_id"] == current_draw["suggestion_id"] and result["slogan"] %}<span class="winning-slogan">“{{ result["slogan"] }}”</span>{% endif %}<p>+{{ result["base_points"] }} базовых{% if result["weight_points"] %} + {{ result["weight_points"] }} веса{% else %} · вес уже учтён{% endif %} = <strong>{{ result["total_points"] }} очков</strong></p></div><span class="ticket-star">✦</span></article>{% endfor %}</div>{% if current_draw %}<a class="button button-accent next-stage-button" href="{{ url_for('stage', stage=3) }}">Перейти к оценке фильма <span>→</span></a>{% endif %}</section>{% endif %}
+            <section class="draw-stage {% if show_fireworks %}celebration{% endif %}">{% if show_fireworks %}<div class="fireworks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>{% endif %}<div class="draw-card roll-card"><div class="draw-card-top"><span>РАУНД {{ active_roll["round_number"] if active_roll else "новый" }}</span><span>ROLL {{ active_roll["roll_number"] if active_roll else 0 }}/3</span></div><div class="draw-symbol">✦</div>{% if roll_results %}<div class="roll-ticket roll-ticket-{{ roll_results[0]["roll_number"] }}"><span class="roll-label">РОЛЛ {{ roll_results[0]["roll_number"] }}</span><h2>{{ roll_results[0]["film_title"] }}</h2><p>{{ roll_results[0]["user_name"] }} · +{{ roll_results[0]["total_points"] }} очков</p></div>{% else %}<div class="roll-placeholder"><span>✦</span><b>Билет готов<br>к вращению</b></div>{% endif %}<form action="{{ url_for('roll_winner') }}" method="post"><button class="button button-accent" type="submit" {% if not suggestions or not users or current_draw or active_roll and active_roll["roll_number"] >= 3 %}disabled{% endif %}>{% if active_roll %}Крутить ролл {{ active_roll["roll_number"] + 1 }}{% else %}Крутить первый ролл{% endif %} <span>✦</span></button></form></div><div class="rules-panel"><p class="eyebrow">Очки роллов</p><div class="rule"><strong>+10</strong><span>первый ролл<br><small>самый весомый шанс</small></span></div><div class="rule"><strong>+7</strong><span>второй ролл<br><small>интрига нарастает</small></span></div><div class="rule"><strong>+5</strong><span>третий ролл<br><small>финальный удар</small></span></div></div></section>
+
+        {% else %}
+          <section class="page-intro compact"><p class="eyebrow">Этап 03 · after movie</p><h1>Ну как вам<br><em>кино?</em></h1><p class="intro">Отметьте тех, кто был, поставьте оценку и подтвердите владельца фильма.</p></section>
+          {% if confirmed_night %}<section class="confirmed-summary"><p class="eyebrow">Просмотр сохранён</p><h2>Вечер подтверждён</h2><div class="average-rating"><strong>{{ "%.1f"|format(confirmed_night["average_rating"]) }}</strong><span>/ 10<br>средняя оценка</span></div><div class="rating-list">{% for rating in ratings %}<div><span>{{ rating["name"] }}</span><b>{{ rating["rating"] }}/10</b></div>{% endfor %}</div><p class="summary-note">Результат останется в этом вечере, пока администратор не нажмёт «Обнулить вечер».</p></section>{% endif %}
+          {% if current_draw %}<section class="confirmation-layout {% if show_fireworks %}celebration{% endif %}">{% if show_fireworks %}<div class="fireworks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>{% endif %}<div class="film-result"><span class="winner-kicker">Три ролла завершены</span><h2>{{ current_draw["film_title"] }}</h2><p>Сегодня смотрим · предложил(а) {{ current_draw["owner_name"] }}</p><span class="result-star">✦</span></div><form class="confirm-form" action="{{ url_for('confirm_movie_night') }}" method="post"><div class="confirm-heading"><span class="section-number">03</span><div><h2>Подтвердить вечер</h2><p>Кто присутствовал и как оценил?</p></div></div><label>Чей фильм это был?</label><select name="owner_id" required>{% for user in users %}<option value="{{ user["id"] }}" {% if user["id"] == current_draw["suggested_by_id"] %}selected{% endif %}>{{ user["name"] }}</option>{% endfor %}</select><label>Кто присутствовал?</label><div class="attendee-list">{% for user in users %}<div class="attendee-row"><label class="check-label"><input type="checkbox" name="attendee_ids" value="{{ user["id"] }}"><span>{{ user["name"] }}</span></label><select name="rating_{{ user["id"] }}" aria-label="Оценка {{ user["name"] }}"><option value="">Оценка</option>{% for rating in range(1, 11) %}<option value="{{ rating }}">{{ rating }}/10</option>{% endfor %}</select></div>{% endfor %}</div><button class="button button-dark" type="submit">Подтвердить просмотр <span>↗</span></button></form></section>{% else %}<section class="empty-stage"><div class="empty-stage-mark">02</div><h2>Сначала проведите розыгрыш</h2><p>Когда все три ролла завершатся, здесь появится форма подтверждения вечера.</p><a class="button button-accent" href="{{ url_for('stage', stage=2) }}">К розыгрышу <span>→</span></a></section>{% endif %}
+        {% endif %}
+        <footer class="main-footer"><span>made for movie nights</span><span>•</span><span>kinoabend</span>{% if session.get("is_admin") %}<form class="reset-evening-form" action="{{ url_for('reset_evening') }}" method="post" onsubmit="return confirm('Обнулить роллы, оценки и историю вечера? Пользователи и фильмы останутся.');"><button class="reset-evening-button" type="submit">Обнулить вечер</button></form><form class="reset-weights-form" action="{{ url_for('reset_weights') }}" method="post" onsubmit="return confirm('Экстренно обнулить веса всех игроков? История и фильмы останутся.');"><button class="reset-weights-button" type="submit">Обнулить веса игроков (только в экстренных случаях)</button></form>{% endif %}</footer>
+      </main>
+    </div>
+    <script>
+      const scrollStorageKey = "kinoabend-scroll-position";
+
+      document.addEventListener("submit", () => {
+        sessionStorage.setItem(scrollStorageKey, String(window.scrollY));
+      });
+
+      window.addEventListener("load", () => {
+        const savedScroll = sessionStorage.getItem(scrollStorageKey);
+        if (savedScroll !== null) {
+          requestAnimationFrame(() => window.scrollTo(0, Number(savedScroll)));
+          sessionStorage.removeItem(scrollStorageKey);
+        }
+      });
+    </script>
+  </body>
+</html>
